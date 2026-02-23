@@ -4,42 +4,547 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>API Testing Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-        }
-        .container {
-            text-align: center;
-            padding: 2rem;
-            background: rgba(255,255,255,0.1);
-            border-radius: 20px;
-            backdrop-filter: blur(10px);
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-        }
-        h1 { font-size: 3rem; margin-bottom: 1rem; }
-        p { font-size: 1.2rem; opacity: 0.9; }
-        .status {
-            display: inline-block;
-            margin-top: 1rem;
-            padding: 0.5rem 1.5rem;
-            background: rgba(255,255,255,0.2);
-            border-radius: 50px;
-            font-size: 0.9rem;
-        }
+        .method-get { color: #61affe; }
+        .method-post { color: #49cc90; }
+        .method-put { color: #fca130; }
+        .method-delete { color: #f93e3e; }
+        .method-patch { color: #50e3c2; }
+        .url-input { font-family: 'Monaco', 'Menlo', monospace; }
+        .response-preview { font-family: 'Monaco', 'Menlo', monospace; white-space: pre-wrap; }
+        .editor { font-family: 'Monaco', 'Menlo', monospace; tab-size: 2; }
+        .collection-item { transition: background 0.2s; }
+        .collection-item:hover { background: rgba(59, 130, 246, 0.1); }
+        .status-badge { display: inline-block; padding: 0.25rem 0.5rem; border-radius: 0.25rem; font-size: 0.75rem; font-weight: 600; }
+        .status-2xx { background: rgba(46, 204, 113, 0.2); color: #2ecc71; }
+        .status-3xx { background: rgba(241, 196, 15, 0.2); color: #f1c40f; }
+        .status-4xx { background: rgba(231, 76, 60, 0.2); color: #e74c3c; }
+        .status-5xx { background: rgba(155, 89, 182, 0.2); color: #9b59b6; }
+        .time-badge { background: rgba(52, 152, 219, 0.2); color: #3498db; }
     </style>
 </head>
-<body>
-    <div class="container">
-        <h1>🔧 API Testing Dashboard</h1>
-        <p>Test and debug REST APIs using curl and jq</p>
-        <div class="status">🚧 Under Construction</div>
+<body class="bg-gray-900 text-gray-100 min-h-screen">
+    <nav class="bg-gray-800 border-b border-gray-700 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center">
+                    <i class="fas fa-plug text-green-400 text-xl mr-2"></i>
+                    <span class="text-xl font-bold text-green-400">API Testing Dashboard</span>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button onclick="toggleCollections()" class="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
+                        <i class="fas fa-folder-open mr-1"></i> Collections
+                    </button>
+                    <button onclick="openSettings()" class="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
+                        <i class="fas fa-cog mr-1"></i> Settings
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Collections Sidebar -->
+    <div id="collections-sidebar" class="fixed left-0 top-16 bottom-0 w-80 bg-gray-800 border-r border-gray-700 transform -translate-x-full transition-transform duration-300 z-40 overflow-y-auto">
+        <div class="p-4">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="font-semibold text-white">Collections</h3>
+                <button onclick="saveCollection()" class="text-blue-400 hover:text-blue-300 text-sm">
+                    <i class="fas fa-plus mr-1"></i> Save
+                </button>
+            </div>
+            <div id="collections-list" class="space-y-2">
+                <!-- Collections will be populated here -->
+            </div>
+        </div>
     </div>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Request Builder -->
+            <div class="lg:col-span-2 space-y-6">
+                <!-- Request Config -->
+                <div class="bg-gray-800 rounded-lg border border-gray-700 p-6">
+                    <h2 class="text-lg font-semibold text-white mb-4"><i class="fas fa-wrench mr-2"></i>Request</h2>
+                    
+                    <!-- Method & URL -->
+                    <div class="flex gap-3 mb-4">
+                        <select id="req-method" class="bg-gray-700 text-white px-4 py-2 rounded font-semibold w-32 border border-gray-600 focus:outline-none focus:border-blue-500">
+                            <option value="GET">GET</option>
+                            <option value="POST">POST</option>
+                            <option value="PUT">PUT</option>
+                            <option value="DELETE">DELETE</option>
+                            <option value="PATCH">PATCH</option>
+                        </select>
+                        <input type="text" id="req-url" placeholder="https://api.example.com/endpoint" class="flex-1 bg-gray-700 text-white px-4 py-2 rounded border border-gray-600 focus:outline-none focus:border-blue-500 url-input">
+                    </div>
+
+                    <!-- Headers & Auth -->
+                    <div class="mb-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <label class="text-sm text-gray-400">Headers</label>
+                            <button onclick="addHeaderRow()" class="text-xs text-blue-400 hover:text-blue-300">
+                                <i class="fas fa-plus mr-1"></i> Add Header
+                            </button>
+                        </div>
+                        <div id="headers-container" class="space-y-2">
+                            <div class="header-row flex gap-2">
+                                <input type="text" placeholder="Key" class="header-key flex-1 bg-gray-700 text-white px-3 py-2 rounded text-sm border border-gray-600">
+                                <input type="text" placeholder="Value" class="header-value flex-1 bg-gray-700 text-white px-3 py-2 rounded text-sm border border-gray-600">
+                                <button onclick="removeHeaderRow(this)" class="text-red-400 hover:text-red-300 px-2"><i class="fas fa-trash"></i></button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Body -->
+                    <div class="mb-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <label class="text-sm text-gray-400">Request Body (JSON)</label>
+                            <select id="body-type" class="bg-gray-700 text-white px-2 py-1 rounded text-sm border border-gray-600" onchange="toggleBodyEditor()">
+                                <option value="none">None</option>
+                                <option value="json">JSON</option>
+                            </select>
+                        </div>
+                        <div id="body-editor-container" class="hidden">
+                            <textarea id="req-body" class="w-full h-48 bg-gray-900 text-gray-100 p-4 rounded font-mono text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 editor" placeholder='{"key": "value"}'></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Send Button -->
+                    <button onclick="sendRequest()" id="send-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg flex items-center justify-center transition">
+                        <i class="fas fa-paper-plane mr-2"></i> Send Request
+                    </button>
+                </div>
+
+                <!-- Response -->
+                <div class="bg-gray-800 rounded-lg border border-gray-700 p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-lg font-semibold text-white"><i class="fas fa-exchange-alt mr-2"></i>Response</h2>
+                        <div id="response-meta" class="flex items-center gap-3 text-sm">
+                            <span class="status-badge hidden" id="res-status"></span>
+                            <span class="time-badge hidden" id="res-time"></span>
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <div class="flex gap-2 mb-2">
+                            <button onclick="showResponseTab('body')" class="response-tab px-3 py-1 rounded text-sm bg-blue-600 text-white" data-tab="body">Body</button>
+                            <button onclick="showResponseTab('headers')" class="response-tab px-3 py-1 rounded text-sm bg-gray-700 text-gray-300" data-tab="headers">Headers</button>
+                        </div>
+                        <div id="response-body" class="bg-gray-900 p-4 rounded overflow-x-auto response-preview text-gray-300 min-h-64 max-h-96 overflow-y-auto">
+                            <p class="text-gray-500 italic">Send a request to see response...</p>
+                        </div>
+                        <div id="response-headers" class="hidden bg-gray-900 p-4 rounded overflow-x-auto response-preview text-gray-300 text-sm">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- History & Quick Actions -->
+            <div class="space-y-6">
+                <!-- Quick Methods -->
+                <div class="bg-gray-800 rounded-lg border border-gray-700 p-6">
+                    <h3 class="font-semibold text-white mb-4"><i class="fas fa-bolt mr-2"></i>Quick Actions</h3>
+                    <div class="space-y-2">
+                        <button onclick="quickRequest('GET', 'https://jsonplaceholder.typicode.com/posts/1')" class="w-full text-left px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm">
+                            <span class="method-get font-semibold">GET</span> JSONPlaceholder Post 1
+                        </button>
+                        <button onclick="quickRequest('POST', 'https://jsonplaceholder.typicode.com/posts')" class="w-full text-left px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm">
+                            <span class="method-post font-semibold">POST</span> Create Post
+                        </button>
+                        <button onclick="quickRequest('GET', 'https://httpbin.org/get')" class="w-full text-left px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm">
+                            <span class="method-get font-semibold">GET</span> httpbin.org/get
+                        </button>
+                        <button onclick="quickRequest('POST', 'https://httpbin.org/post')" class="w-full text-left px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm">
+                            <span class="method-post font-semibold">POST</span> httpbin.org/post
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Request History -->
+                <div class="bg-gray-800 rounded-lg border border-gray-700 p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="font-semibold text-white"><i class="fas fa-history mr-2"></i>History</h3>
+                        <button onclick="clearHistory()" class="text-xs text-red-400 hover:text-red-300">Clear</button>
+                    </div>
+                    <div id="history-list" class="space-y-2 max-h-96 overflow-y-auto">
+                        <!-- History items -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="fixed inset-0 bg-black bg-opacity-75 hidden flex items-center justify-center z-50 p-4">
+        <div class="bg-gray-800 rounded-lg max-w-lg w-full p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold text-white">Settings</h2>
+                <button onclick="closeSettings()" class="text-gray-400 hover:text-white">
+                    <i class="fas fa-times text-2xl"></i>
+                </button>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm text-gray-400 mb-1">Default Headers</label>
+                    <textarea id="default-headers" class="w-full h-32 bg-gray-900 text-gray-100 p-3 rounded font-mono text-sm" placeholder='{"Content-Type": "application/json"}'></textarea>
+                </div>
+                <div>
+                    <label class="flex items-center">
+                        <input type="checkbox" id="auto-format" class="mr-2">
+                        <span class="text-sm text-gray-300">Auto-format JSON responses</span>
+                    </label>
+                </div>
+                <div>
+                    <label class="flex items-center">
+                        <input type="checkbox" id="store-history" checked class="mr-2">
+                        <span class="text-sm text-gray-300">Store request history</span>
+                    </label>
+                </div>
+            </div>
+            <div class="mt-6 flex justify-end">
+                <button onclick="saveSettings()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">Save Settings</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let collections = JSON.parse(localStorage.getItem('api-collections') || '[]');
+        let history = JSON.parse(localStorage.getItem('api-history') || '[]');
+        let currentResponse = null;
+
+        // Init
+        document.addEventListener('DOMContentLoaded', () => {
+            renderCollections();
+            renderHistory();
+            loadSettings();
+            
+            // Pre-fill with sample if empty
+            if (!localStorage.getItem('default-headers')) {
+                document.getElementById('default-headers').value = JSON.stringify({
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                }, null, 2);
+            }
+        });
+
+        // Request builder
+        function addHeaderRow(key = '', value = '') {
+            const container = document.getElementById('headers-container');
+            const row = document.createElement('div');
+            row.className = 'header-row flex gap-2';
+            row.innerHTML = `
+                <input type="text" placeholder="Key" value="${key}" class="header-key flex-1 bg-gray-700 text-white px-3 py-2 rounded text-sm border border-gray-600">
+                <input type="text" placeholder="Value" value="${value}" class="header-value flex-1 bg-gray-700 text-white px-3 py-2 rounded text-sm border border-gray-600">
+                <button onclick="removeHeaderRow(this)" class="text-red-400 hover:text-red-300 px-2"><i class="fas fa-trash"></i></button>
+            `;
+            container.appendChild(row);
+        }
+
+        function removeHeaderRow(btn) {
+            btn.parentElement.remove();
+        }
+
+        function toggleBodyEditor() {
+            const type = document.getElementById('body-type').value;
+            const container = document.getElementById('body-editor-container');
+            if (type === 'json') {
+                container.classList.remove('hidden');
+            } else {
+                container.classList.add('hidden');
+            }
+        }
+
+        async function sendRequest() {
+            const method = document.getElementById('req-method').value;
+            const url = document.getElementById('req-url').value.trim();
+            const bodyType = document.getElementById('body-type').value;
+            const body = document.getElementById('req-body').value.trim();
+            
+            if (!url) {
+                alert('Please enter a URL');
+                return;
+            }
+
+            // Collect headers
+            const headers = {};
+            document.querySelectorAll('.header-row').forEach(row => {
+                const key = row.querySelector('.header-key').value.trim();
+                const value = row.querySelector('.header-value').value.trim();
+                if (key && value) {
+                    headers[key] = value;
+                }
+            });
+
+            // Add default headers from settings
+            const defaultHeaders = JSON.parse(localStorage.getItem('default-headers') || '{}');
+            Object.assign(headers, defaultHeaders);
+
+            // Prepare fetch options
+            const options = {
+                method: method,
+                headers: headers
+            };
+
+            if (bodyType === 'json' && body) {
+                try {
+                    options.body = JSON.stringify(JSON.parse(body), null, 2);
+                } catch (e) {
+                    alert('Invalid JSON in request body');
+                    return;
+                }
+            }
+
+            const btn = document.getElementById('send-btn');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Sending...';
+
+            const startTime = performance.now();
+
+            try {
+                const response = await fetch(url, options);
+                const endTime = performance.now();
+                const duration = (endTime - startTime).toFixed(2);
+                
+                let responseBody;
+                const contentType = response.headers.get('content-type') || '';
+                if (contentType.includes('application/json')) {
+                    responseBody = await response.json();
+                    responseBody = JSON.stringify(responseBody, null, 2);
+                } else {
+                    responseBody = await response.text();
+                }
+
+                const headersObj = {};
+                response.headers.forEach((value, key) => {
+                    headersObj[key] = value;
+                });
+
+                currentResponse = {
+                    status: response.status,
+                    statusText: response.statusText,
+                    headers: headersObj,
+                    body: responseBody,
+                    duration: duration
+                };
+
+                displayResponse(currentResponse);
+                addToHistory({
+                    method,
+                    url,
+                    status: response.status,
+                    duration: duration,
+                    timestamp: new Date().toISOString()
+                });
+
+            } catch (error) {
+                const endTime = performance.now();
+                currentResponse = {
+                    status: 0,
+                    statusText: 'Error',
+                    headers: {},
+                    body: error.message,
+                    duration: (endTime - startTime).toFixed(2)
+                };
+                displayResponse(currentResponse);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-paper-plane mr-2"></i> Send Request';
+            }
+        }
+
+        function displayResponse(resp) {
+            // Status badge
+            const statusBadge = document.getElementById('res-status');
+            statusBadge.textContent = resp.status + ' ' + resp.statusText;
+            statusBadge.className = 'status-badge';
+            if (resp.status >= 200 && resp.status < 300) statusBadge.classList.add('status-2xx');
+            else if (resp.status >= 300 && resp.status < 400) statusBadge.classList.add('status-3xx');
+            else if (resp.status >= 400 && resp.status < 500) statusBadge.classList.add('status-4xx');
+            else if (resp.status >= 500) statusBadge.classList.add('status-5xx');
+            else statusBadge.classList.add('status-4xx');
+            statusBadge.classList.remove('hidden');
+
+            // Time badge
+            const timeBadge = document.getElementById('res-time');
+            timeBadge.textContent = resp.duration + 'ms';
+            timeBadge.classList.remove('hidden');
+
+            // Body
+            const bodyEl = document.getElementById('response-body');
+            bodyEl.textContent = resp.body;
+            hljs.highlightElement(bodyEl);
+
+            // Headers
+            const headersEl = document.getElementById('response-headers');
+            headersEl.textContent = JSON.stringify(resp.headers, null, 2);
+            hljs.highlightElement(headersEl);
+        }
+
+        function showResponseTab(tab) {
+            document.querySelectorAll('.response-tab').forEach(btn => {
+                if (btn.dataset.tab === tab) {
+                    btn.classList.remove('bg-gray-700', 'text-gray-300');
+                    btn.classList.add('bg-blue-600', 'text-white');
+                } else {
+                    btn.classList.remove('bg-blue-600', 'text-white');
+                    btn.classList.add('bg-gray-700', 'text-gray-300');
+                }
+            });
+            
+            document.getElementById('response-body').classList.add('hidden');
+            document.getElementById('response-headers').classList.add('hidden');
+            document.getElementById(`response-${tab}`).classList.remove('hidden');
+        }
+
+        // Quick requests
+        function quickRequest(method, url) {
+            document.getElementById('req-method').value = method;
+            document.getElementById('req-url').value = url;
+            sendRequest();
+        }
+
+        // Collections
+        function toggleCollections() {
+            const sidebar = document.getElementById('collections-sidebar');
+            if (sidebar.classList.contains('-translate-x-full')) {
+                sidebar.classList.remove('-translate-x-full');
+            } else {
+                sidebar.classList.add('-translate-x-full');
+            }
+        }
+
+        function renderCollections() {
+            const list = document.getElementById('collections-list');
+            list.innerHTML = collections.map((col, idx) => `
+                <div class="collection-item p-3 bg-gray-700 rounded cursor-pointer" onclick="loadCollection(${idx})">
+                    <div class="font-medium text-white">${col.name}</div>
+                    <div class="text-xs text-gray-400">${col.requests.length} requests</div>
+                </div>
+            `).join('');
+        }
+
+        function saveCollection() {
+            const name = prompt('Collection name:');
+            if (!name) return;
+            
+            const method = document.getElementById('req-method').value;
+            const url = document.getElementById('req-url').value;
+            const headers = {};
+            document.querySelectorAll('.header-row').forEach(row => {
+                const key = row.querySelector('.header-key').value.trim();
+                const value = row.querySelector('.header-value').value.trim();
+                if (key && value) headers[key] = value;
+            });
+            const body = document.getElementById('req-body').value;
+            
+            collections.push({
+                name,
+                requests: [{
+                    method,
+                    url,
+                    headers,
+                    body,
+                    timestamp: new Date().toISOString()
+                }]
+            });
+            localStorage.setItem('api-collections', JSON.stringify(collections));
+            renderCollections();
+            alert('Request saved to collection!');
+        }
+
+        function loadCollection(idx) {
+            const col = collections[idx];
+            if (col.requests.length > 0) {
+                const req = col.requests[0]; // load first
+                document.getElementById('req-method').value = req.method;
+                document.getElementById('req-url').value = req.url;
+                
+                // Clear existing headers
+                document.getElementById('headers-container').innerHTML = '';
+                Object.entries(req.headers).forEach(([key, value]) => {
+                    addHeaderRow(key, value);
+                });
+                
+                if (req.body) {
+                    document.getElementById('body-type').value = 'json';
+                    document.getElementById('req-body').value = req.body;
+                    toggleBodyEditor();
+                }
+            }
+        }
+
+        // History
+        function addToHistory(item) {
+            if (!localStorage.getItem('store-history')) return;
+            
+            history.unshift(item);
+            if (history.length > 50) history.pop();
+            localStorage.setItem('api-history', JSON.stringify(history));
+            renderHistory();
+        }
+
+        function renderHistory() {
+            const list = document.getElementById('history-list');
+            list.innerHTML = history.map((item, idx) => `
+                <div class="history-item p-3 bg-gray-700 rounded cursor-pointer hover:bg-gray-600 transition" onclick="loadHistoryItem(${idx})">
+                    <div class="flex items-center justify-between">
+                        <span class="method-${item.method.toLowerCase()} font-semibold text-sm">${item.method}</span>
+                        <span class="text-xs text-gray-400">${item.duration}ms</span>
+                    </div>
+                    <div class="text-sm text-gray-300 truncate">${item.url}</div>
+                    <div class="text-xs text-gray-500">${new Date(item.timestamp).toLocaleTimeString()}</div>
+                </div>
+            `).join('');
+        }
+
+        function loadHistoryItem(idx) {
+            const item = history[idx];
+            document.getElementById('req-method').value = item.method;
+            document.getElementById('req-url').value = item.url;
+        }
+
+        function clearHistory() {
+            if (confirm('Clear request history?')) {
+                history = [];
+                localStorage.removeItem('api-history');
+                renderHistory();
+            }
+        }
+
+        // Settings
+        function openSettings() {
+            document.getElementById('settings-modal').classList.remove('hidden');
+            document.getElementById('default-headers').value = localStorage.getItem('default-headers') || '{}';
+            document.getElementById('auto-format').checked = localStorage.getItem('auto-format') === 'true';
+            document.getElementById('store-history').checked = localStorage.getItem('store-history') !== 'false';
+        }
+
+        function closeSettings() {
+            document.getElementById('settings-modal').classList.add('hidden');
+        }
+
+        function saveSettings() {
+            const defaultHeaders = document.getElementById('default-headers').value;
+            try {
+                JSON.parse(defaultHeaders);
+                localStorage.setItem('default-headers', defaultHeaders);
+            } catch (e) {
+                alert('Invalid JSON in default headers');
+                return;
+            }
+            localStorage.setItem('auto-format', document.getElementById('auto-format').checked);
+            localStorage.setItem('store-history', document.getElementById('store-history').checked);
+            closeSettings();
+            alert('Settings saved!');
+        }
+
+        function loadSettings() {
+            // Already loaded in DOMContentLoaded
+        }
+    </script>
 </body>
 </html>
